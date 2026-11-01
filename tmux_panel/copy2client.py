@@ -21,7 +21,10 @@ from .identity import Identity
 
 PREFIX = "sbp1."
 CONNECT_V = "sbp-connect/1"
-CONSOLE_URL = "https://console.example.com/sbp-console"
+
+# 网页控制台地址由部署方提供：设置环境变量 SBP_CONSOLE_URL 即可，
+# 不在代码里写死某一家托管的域名。
+CONSOLE_URL = os.environ.get("SBP_CONSOLE_URL", "").rstrip("/")
 
 
 def _b64u(raw: bytes) -> str:
@@ -70,7 +73,7 @@ def render_copy2client(ident: Identity) -> str:
         "# ============================================================",
         f"# SBP 连接信息 · {ident.did} · 生成于 {ts}",
         "#",
-        f"# 用法：整段复制下面的内容，粘贴进 {CONSOLE_URL}",
+        f"# 用法：整段复制下面的内容，粘贴进 {CONSOLE_URL or '你的 SBP 网页控制台'}",
         "#       的「服务器管理 → 粘贴导入」框，一次导入下面 "
         f"{len(ident.clients)} 台客户端。",
         "#       小程序同理（设置页 → 粘贴导入）。",

@@ -8,7 +8,7 @@
 声明历史文件在哪、怎么把「正在跑的进程」绑到具体某个文件。没声明的 agent
 保持原样（纯终端 + 实时屏幕），不会误伤。
 
-qwen code 的实测事实（v0.26.0，2026-11-01 在 test-host 上逐条核对）：
+qwen code 的实测事实（v0.26.0，2026-11-01 在测试机上逐条核对）：
 
   历史文件   ~/.qwen/projects/<slug>/chats/<uuid>.jsonl
   slug 规则  与 claude 完全一致：cwd 里非字母数字全替换成 '-'

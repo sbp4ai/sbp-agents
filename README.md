@@ -64,7 +64,7 @@ SBP_BRIDGE_E2EE=wss://relay.example.com/ws-e2ee
 
 在机器上 `cat .copy2client` → 整段复制 → 粘进「粘贴导入」框：
 
-- 网页控制台 <https://console.example.com/sbp-console> → 服务器管理 → 粘贴导入
+- 网页控制台（地址由部署方提供，可设 `SBP_CONSOLE_URL` 环境变量）→ 服务器管理 → 粘贴导入
 - 微信小程序 sbp-minis → 设置 → 粘贴导入
 
 一次导入两台（网页控制台 + 微信小程序），每台自带私钥，中继那边已经登记过对应公钥，
