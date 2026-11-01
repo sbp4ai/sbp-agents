@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sbp-agents"
+version = "0.4.0"
+description = "SBP (Session Bridge Protocol) device agent: a local panel for tmux + CLI agents (claude/codex/dsh/hermes/openclaw) plus the outbound bridge that reports them to an sbp-dispatcher. E2EE keys are generated locally and never leave the machine."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "SBP4AI" }]
+keywords = ["sbp", "tmux", "claude-code", "terminal", "e2ee", "session-bridge"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Terminals",
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "fastapi>=0.100",
+    "uvicorn>=0.22",
+    "aiohttp>=3.9",
+    "python-dotenv>=0.21",
+    "sbp-client>=0.4.0",
+]
+
+[project.scripts]
+sbp-agents = "tmux_panel.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/sbp4ai/sbp-agent"
+Specification = "https://github.com/sbp4ai/sbp-spec/blob/main/spec/SBP-0.4-e2ee.md"
+
+[tool.setuptools]
+packages = ["tmux_panel"]
+
+[tool.setuptools.package-data]
+tmux_panel = ["web/*"]

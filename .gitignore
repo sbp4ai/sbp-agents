@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# 密钥与连接信息：绝不进版本库
+.env
+.copy4client
+.copy4relay
+*.key
