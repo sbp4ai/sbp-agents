@@ -90,6 +90,6 @@ flowchart LR
 
 ## 相关
 
-- [`sbp-client`](https://pypi.org/project/sbp-client/) — E2EE 加密内核（PyNaCl），两端共用。
+- [`sbp4ai-client`](https://pypi.org/project/sbp4ai-client/) — E2EE 加密内核（PyNaCl），两端共用。
 - [`sbp-dispatcher`](https://pypi.org/project/sbp-dispatcher/) — 中继，只有公钥目录。
 - 协议：[`SBP-0.4-e2ee.md`](https://github.com/sbp4ai/sbp-spec/blob/main/spec/SBP-0.4-e2ee.md)。
