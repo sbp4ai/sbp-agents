@@ -46,7 +46,7 @@ class E2EEBridge(Bridge):
         key_id, box_b64, sign_b64, rk, did, peers = load_e2ee_config()
         self.kp = KeyPair.from_strings(box_b64, sign_b64)
         self.ring = KeyRing()
-        # 所有登记过的客户端都进 ring：.copy4client 一次可能导出两台（网页 + 小程序）
+        # 所有登记过的客户端都进 ring：.copy2client 一次可能导出两台（网页 + 小程序）
         for pid, pb, ps in peers:
             self.ring.add(pid, pb, ps)
         self._peer_ids = [p[0] for p in peers]

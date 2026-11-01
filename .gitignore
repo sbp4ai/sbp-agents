@@ -8,6 +8,7 @@ venv/
 
 # 密钥与连接信息：绝不进版本库
 .env
+.copy2client
 .copy4client
 .copy4relay
 *.key

@@ -1,7 +1,7 @@
 """生成「给客户端的连接信息」。
 
 产物两个文件（都在工作目录，权限 600）：
-  .copy4client   每台客户端一行 `sbp1.<base64url(json)>`，整段复制到控制台/小程序的
+  .copy2client   每台客户端一行 `sbp1.<base64url(json)>`，整段复制到控制台/小程序的
                  「粘贴导入」框即可，一次导入全部客户端（默认两台：网页 + 小程序）。
                  里面含客户端私钥 —— 只在可信通道里发一次，别贴到公开地方。
   .copy4relay    给 sbp-dispatcher 的 SBP_TRUSTED_KEYS= 一行（只有公钥）。
@@ -64,7 +64,7 @@ def decode_connect(line: str) -> dict:
 
 
 # ------------------------------------------------------------------ 渲染
-def render_copy4client(ident: Identity) -> str:
+def render_copy2client(ident: Identity) -> str:
     ts = datetime.now().strftime("%Y-%m-%d %H:%M")
     L = [
         "# ============================================================",
@@ -108,8 +108,8 @@ def _write(path: Path, text: str) -> Path:
     return path
 
 
-def write_copy4client(ident: Identity, path: str = ".copy4client") -> Path:
-    return _write(Path(path), render_copy4client(ident))
+def write_copy2client(ident: Identity, path: str = ".copy2client") -> Path:
+    return _write(Path(path), render_copy2client(ident))
 
 
 def write_copy4relay(ident: Identity, path: str = ".copy4relay") -> Path:
@@ -118,6 +118,6 @@ def write_copy4relay(ident: Identity, path: str = ".copy4relay") -> Path:
 
 __all__ = [
     "connect_payload", "encode_connect", "decode_connect",
-    "render_copy4client", "render_copy4relay",
-    "write_copy4client", "write_copy4relay", "PREFIX", "CONNECT_V",
+    "render_copy2client", "render_copy4relay",
+    "write_copy2client", "write_copy4relay", "PREFIX", "CONNECT_V",
 ]

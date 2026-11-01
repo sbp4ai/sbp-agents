@@ -6,7 +6,7 @@
     PORT=9999 python -m tmux_panel
 
 启动后会在工作目录写两个文本文件：
-    .copy4client   客户端连接串（每台一行 sbp1.xxx），整段复制粘贴到控制台/小程序即可导入
+    .copy2client   客户端连接串（每台一行 sbp1.xxx），整段复制粘贴到控制台/小程序即可导入
     .copy4relay    给 sbp-dispatcher 的 SBP_TRUSTED_KEYS（只有公钥）
 """
 from __future__ import annotations
@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 from .identity import ensure_identity
-from .copy4client import connect_payload, encode_connect, write_copy4client, write_copy4relay
+from .copy2client import connect_payload, encode_connect, write_copy2client, write_copy4relay
 
 DEFAULT_PORT = 20016
 DEFAULT_HOST = "127.0.0.1"
@@ -92,6 +92,11 @@ def main(argv: list[str] | None = None) -> int:
     import uvicorn
     from .server import app
 
+    # 绝对路径：用户可能从任意目录拉起，只有绝对路径才找得到文件
+    env_path = (Path.cwd() / ".env").resolve()
+    client_path = (Path.cwd() / ".copy2client").resolve()
+    relay_path = (Path.cwd() / ".copy4relay").resolve()
+
     print("=" * 62)
     print("  tmux-claude-panel 已启动")
     print(f"  本机访问:  http://127.0.0.1:{port}")
@@ -113,25 +118,38 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  上报:      {args.bridge}")
     if ident.relay:
         print(f"  E2EE 上报: {ident.relay}")
+    print(f"  配置文件:  {env_path}")
+    print(f"  连接信息:  {client_path}")
     print("  Ctrl+C 停止")
     print("=" * 62)
 
-    # ---- 连接信息：另起一段打印，同时落到 .copy4client ----
+    # ---- 连接信息：另起一段打印，同时落到 .copy2client ----
     try:
-        write_copy4client(ident)
-        write_copy4relay(ident)
+        write_copy2client(ident, str(client_path))
+        write_copy4relay(ident, str(relay_path))
+        # 旧文件名（.copy4client）留过就删掉，免得两份密钥各自改一半
+        legacy = Path.cwd() / ".copy4client"
+        if legacy.exists():
+            try:
+                legacy.unlink()
+            except OSError:
+                pass
     except OSError as e:
-        print(f"  [warn] 写 .copy4client 失败：{e}")
+        print(f"  [warn] 写 {client_path} 失败：{e}")
+    print()
+    print(f"  连接信息已写入 {client_path}")
+    print("  用法：cat .copy2client → 整段复制 → 粘进控制台/小程序的「粘贴导入」框，")
+    print("        一次导入两台客户端（cli-web 网页控制台 + cli-minis 微信小程序）。")
     print()
     if ident.relay:
-        print("  E2EE 连接信息（已写入 .copy4client —— 整段复制，粘贴进客户端的「粘贴导入」即可）:")
+        print("  E2EE 连接信息（同样内容就在上面的文件里，可直接整段复制）:")
     else:
-        print("  E2EE 连接信息（已写入 .copy4client；还没填中继地址，"
+        print("  E2EE 连接信息（还没填中继地址，"
               "在 .env 里设 SBP_BRIDGE_E2EE 后重启会带上正确地址）:")
     for c in ident.clients:
         print(f"    [{c.key_id}] {c.label}")
         print("      " + encode_connect(connect_payload(ident, c)))
-    print("  中继公钥目录（已写入 .copy4relay —— 只有公钥，可明文发给中继）:")
+    print(f"  中继公钥目录（已写入 {relay_path} —— 只有公钥，可明文发给中继）:")
     print("      SBP_TRUSTED_KEYS=" + ident.trusted_keys_env())
     print()
 

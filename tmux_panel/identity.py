@@ -3,7 +3,7 @@
 策略（SBP-0.4 §密钥托管）：
   * 私钥只在这台机器上生成、只落在这台机器的 .env 里，永远不上中继；
   * 第一次启动全部随机生成，之后固化 —— 用户可以手改 .env 再重启来换成自己的密钥；
-  * 客户端（网页控制台 / 微信小程序）的密钥也在这里一并生成，这样 .copy4client
+  * 客户端（网页控制台 / 微信小程序）的密钥也在这里一并生成，这样 .copy2client
     里的连接串是自洽的：agent 已经把对应公钥登记进 SBP_E2EE_PEERS，中继那边
     只要认公钥就行。
 
@@ -13,7 +13,7 @@
   SBP_E2EE_KEY        box_sk_b64:sign_sk_b64    ← 私钥
   SBP_E2EE_RK         路由密钥（64-hex 原始密钥，或口令 → Argon2id）
   SBP_E2EE_PEERS      peerId:box_pk:sign_pk,... ← 允许连进来的客户端公钥
-  SBP_CLIENT_KEYS     peerId:box_sk:sign_sk,... ← 客户端私钥，用于导出 .copy4client
+  SBP_CLIENT_KEYS     peerId:box_sk:sign_sk,... ← 客户端私钥，用于导出 .copy2client
   SBP_BRIDGE_E2EE     中继地址 wss://host/ws-e2ee
 """
 from __future__ import annotations
