@@ -18,6 +18,7 @@ import socket
 import sys
 from pathlib import Path
 
+from . import __version__
 from .identity import ensure_identity
 from .copy2client import connect_payload, encode_connect, write_copy2client, write_copy4relay
 
@@ -73,7 +74,7 @@ def main(argv: list[str] | None = None) -> int:
                    help="E2EE 上报：走 /ws-e2ee，端到端加密（中继看不到明文）。密钥默认随机生成"
                         "并写入 .env，也可以手改 .env 里的 SBP_E2EE_KEY / SBP_E2EE_RK / "
                         "SBP_E2EE_PEERS / SBP_CLIENT_KEYS（见 sbp-spec SBP-0.4）。")
-    ap.add_argument("--version", action="version", version="tmux-ai-coder-panel 1.0.9")
+    ap.add_argument("--version", action="version", version=f"sbp4ai-agents {__version__}")
     args = ap.parse_args(argv)
     if args.bridge:
         os.environ["SBP_BRIDGE"] = args.bridge
