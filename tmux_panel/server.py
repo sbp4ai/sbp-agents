@@ -110,6 +110,9 @@ hub = Hub()
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     task = asyncio.create_task(hub.tick_loop())
+    # 先把索引建一遍：第一次请求（手机上刚点开 App）就不用等它 fork 那一堆 ps / lsof。
+    # 失败也不影响启动，请求来了照样会重建。
+    warm = asyncio.create_task(hub.index())
     # --bridge / SBP_BRIDGE：把本机会话上报到本机 sbp-server，让「一个客户端看 N 台
     # 机器」成为可能。没配就是普通面板，一行代码都不跑。
     bridge_task = None
@@ -130,11 +133,9 @@ async def lifespan(_app: FastAPI):
     try:
         yield
     finally:
-        task.cancel()
-        if bridge_task:
-            bridge_task.cancel()
-        if e2ee_task:
-            e2ee_task.cancel()
+        for t in (warm, task, bridge_task, e2ee_task):
+            if t:
+                t.cancel()
 
 
 app = FastAPI(title="tmux-claude-panel", version="0.1.0", lifespan=lifespan)
@@ -551,7 +552,9 @@ async def _dispatch(c: Client, f: dict) -> None:
         w.prompt = spec
         await c.send(_res(rid, name, True, {
             "sid": sid, "last_seq": w.last_seq, "tmux": w.tmux_name,
-            "editable": bool(w.tmux_name), "kind": "term" if not w.path else "claude",
+            "editable": bool(w.tmux_name),
+            "kind": ("shell" if sid.startswith("shell:")
+                     else ("term" if not w.path else "claude")),
             "prompt": spec,
         }))
         if screen:

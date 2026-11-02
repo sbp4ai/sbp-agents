@@ -25,6 +25,10 @@ MAX_TEXT = 6000
 PAGE_SCAN_MAX = 800
 SKIP_TYPES = {"mode", "permission-mode", "file-history-snapshot", "queue-operation", "attachment"}
 
+# 这些开头的「user 消息」其实是工具结果 / 系统注入，不是人打的字
+_NOISE_PREFIX = ("↳", "<command-name>", "<local-command", "[Request interrupted",
+                 "Caveat: The messages below")
+
 
 def slug_for(path: str) -> str:
     p = (path or "").rstrip("/")
@@ -194,6 +198,10 @@ def normalize(rec: dict, seq: int) -> Optional[dict]:
     content = _content_of(msg)
     text, tools = _text_of(content)
     if not text:
+        return None
+    # 工具结果回灌：harness 会把 web 搜索 / 命令输出当成一条 user 消息塞回来
+    # （"↳ Web search results ... Links: [{...}]"），不是人说的话，手机上看就是乱码
+    if typ == "user" and text.lstrip().startswith(_NOISE_PREFIX):
         return None
     truncated = len(text) > MAX_TEXT
     return {

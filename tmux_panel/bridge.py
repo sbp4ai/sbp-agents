@@ -148,6 +148,8 @@ class Bridge:
                     "updated_at": it.get("updated_at", 0),
                     "tmux": it.get("tmux", ""),
                     "has_history": bool(it.get("has_history")),
+                    # 客户端侧栏只显示「此刻还在跑」的会话（active）；status 给老客户端兜底
+                    "active": bool(it.get("active")),
                     "status": "running" if it.get("active") else "idle",
                 })
         await self.send({"v": VERSION, "type": "evt", "name": "session.index", "ts": now_ms(),
@@ -221,8 +223,10 @@ class Bridge:
             screen = Tmux.capture(w.tmux_name, lines=40) if w.tmux_name else ""
             spec = promptmod.extract(screen, w.agent) if screen else None
             w.last_screen, w.prompt, w.last_pid = screen, spec, (spec["pid"] if spec else "")
+            kind = ("shell" if sid.startswith("shell:")
+                    else ("term" if not w.path else "claude"))
             await self.send(res(True, {"sid": sid, "tmux": w.tmux_name, "last_seq": w.last_seq,
-                                       "kind": "term" if not w.path else "claude",
+                                       "kind": kind,
                                        "editable": bool(w.tmux_name), "prompt": spec}))
             if screen:
                 await self.send({"v": VERSION, "type": "evt", "name": "output.delta", "sid": sid,

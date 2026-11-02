@@ -81,9 +81,12 @@ def display_of(agent_id: str) -> str:
 
 ACTIVE_TTL = 180.0      # jsonl 在这么多秒内被写过，就算「刚活跃」
 _PS_TTL = 2.0           # ps 快照缓存
-_FD_TTL = 5.0           # 单个 pid 的打开文件缓存
+_PS_FAIL_TTL = 60.0     # ps 被禁（容器 / 沙箱）时别再每个 pane 都试一遍
+_FD_TTL = 30.0          # 单个 pid 的打开文件缓存（lsof 很贵，进程开着的文件变化很慢）
+_KID_TTL = 8.0          # pgrep -P 兜底结果的缓存
 
 _ps_cache: tuple[float, dict] = (0.0, {})
+_ps_fail_at: float = 0.0
 _fd_cache: dict[int, tuple[float, list]] = {}
 _cmd_cache: dict[int, tuple[float, str]] = {}
 
@@ -116,10 +119,12 @@ def _ppid_map() -> dict[int, int] | None:
 
     Linux 直接扫 /proc，零外部命令；macOS 走 ps -eo，失败再退化到 pgrep。
     """
-    global _ps_cache
+    global _ps_cache, _ps_fail_at
     now = time.time()
     if now - _ps_cache[0] < _PS_TTL:
         return _ps_cache[1] or None
+    if _ps_fail_at and now - _ps_fail_at < _PS_FAIL_TTL:
+        return None                       # 上次就取不到，别每个 pane 再 fork 一次 ps
 
     m: dict[int, int] = {}
     if os.path.isdir("/proc"):
@@ -153,6 +158,8 @@ def _ppid_map() -> dict[int, int] | None:
                     pass
     except Exception:
         pass
+    if not m:
+        _ps_fail_at = now                  # ps 不可用（沙箱/精简容器）：一段时间内别再试
     _ps_cache = (now, m)
     return m or None
 
@@ -160,7 +167,7 @@ def _ppid_map() -> dict[int, int] | None:
 def _kids_of(pid: int) -> list[int]:
     """ps 不可用时的兜底：pgrep -P 只要直接子进程。"""
     hit = _fd_cache.get(-pid)
-    if hit and time.time() - hit[0] < _PS_TTL:
+    if hit and time.time() - hit[0] < _KID_TTL:
         return hit[1]
     out: list[int] = []
     try:

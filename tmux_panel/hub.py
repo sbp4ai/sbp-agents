@@ -27,6 +27,9 @@ from .tmux import Tmux
 _TITLE_RES = [re.compile(r"^task:\s*(.+)$"), re.compile(r"^[#>]\s*(.{4,60})$")]
 
 INDEX_TTL = 6.0
+# 手上还有这么多秒以内的旧索引时，先回旧的、后台重建（重建是秒级、要 fork 一堆进程）。
+# 超过这个岁数就老老实实等新的：宁可慢一两秒，也不能把十分钟前的旧会话当现状给用户。
+INDEX_STALE = 45.0
 # 侧栏「哪个会话在跑」是会变的（claude 启动/退出/切会话），
 # 定期重算索引，变了才广播。建一次索引要 fork 60+ 个子进程，是全站最贵的操作，
 # 所以让它跟 tick 对齐：tick 负责重建，HTTP 轮询者直接读缓存，
@@ -116,8 +119,14 @@ def build_index() -> dict:
                 sid_to_path.setdefault(it["sid"], it["file"])
                 used_paths.add(it["file"])
             a = claude.anno.get(it["sid"])
-            it["title"] = a.get("title") or it["short"]
-            it["subtitle"] = a.get("subtitle") or it["ai_title"] or it["last_prompt"][:80] or ""
+            # 侧栏标题优先用人能读的那句：手写注释 > ai 标题 > 最后一条提问，
+            # 都没有才退回 sid 前 8 位（否则一整列都是十六进制）
+            it["title"] = (a.get("title") or it.get("ai_title")
+                           or (it.get("last_prompt") or "").strip()[:40]
+                           or it["short"])
+            it["subtitle"] = (a.get("subtitle")
+                              or (it.get("last_prompt") or "").strip()[:80]
+                              or it["short"])
             it["custom"] = bool(a.get("title") or a.get("subtitle"))
             it["tmux"] = s["name"]
 
@@ -176,7 +185,9 @@ def build_index() -> dict:
                           if (hist and st.st_size < 8 * 1024 * 1024) else 0),
                 # 绑到历史文件后用文件的 mtime：这样「最后一条消息什么时候来的」
                 # 才是准的；没文件时退回 tmux 会话创建时间
-                "updated_at": int(st.st_mtime * 1000) if hist else int(s.get("created") or 0),
+                # tmux 的 session_created 是秒，索引统一用毫秒
+                "updated_at": (int(st.st_mtime * 1000) if hist
+                               else int(s.get("created") or 0) * 1000),
                 "branch": "", "tmux": s["name"],
                 "kind": "term", "agent": ag,
                 "path": hist,
@@ -198,6 +209,30 @@ def build_index() -> dict:
         if act:
             # 进程抱着 jsonl 但命令行没被认出来（自定义包装脚本等）：组头也点亮
             agent = agent or "claude-code"
+
+        # 一个 agent 都没在跑：给这个 tmux 留一条「空终端」占位。
+        # 客户端只显示 active 项（灰的历史会话不上侧栏），所以这里必须有一条能点的，
+        # 否则这台机器在手机上直接消失，用户也就没法远程敲 claude 把它唤醒。
+        group_live = bool(claude_live or any_running)
+        if not group_live and panes:
+            ap = next((p for p in panes if p.get("active")), panes[0])
+            pane_id = ap.get("pane_id") or ""
+            multi = len(panes) > 1
+            sid = f"shell:{s['name']}" if not multi else f"shell:{s['name']}#{pane_id}"
+            items.append({
+                "sid": sid,
+                "short": (s["name"] if not multi else f"{s['name']}/{pane_id.lstrip('%')}")[:8],
+                "title": s["name"] if not multi else f"{s['name']} · {pane_id.lstrip('%')}",
+                "subtitle": "空终端 · 敲 claude 即可唤醒",
+                "custom": False, "count": 0,
+                # 用 tmux 创建时间而不是 now：否则索引指纹每次都变，304 永远命中不了
+                "updated_at": int(s.get("created") or 0) * 1000,
+                "branch": "", "tmux": s["name"],
+                "kind": "shell", "agent": "", "path": "",
+                # 它是这个组里唯一可点的东西：标成 active，客户端「只显示活跃项」不会把它筛掉
+                "active": True,
+            })
+            sid_to_tmux.setdefault(sid, s["name"])
 
         groups_items = [_slim(x) for x in items]
         covered_cwd.add(cwd)
@@ -311,6 +346,7 @@ class Hub:
         self.clients: set = set()
         self.watches: dict[str, set] = {}     # sid -> {client}  WebSocket 订阅者
         self._index_cache: tuple[float, dict] | None = None
+        self._build_task: Optional[asyncio.Task] = None
         self._watch_state: dict[str, Watch] = {}
         self._task: Optional[asyncio.Task] = None
         self._sig: str = ""
@@ -397,6 +433,9 @@ class Hub:
         return {
             "sid": sid,
             "tmux": w.tmux_name,
+            # claude 有落盘历史；term 只有屏幕；shell 是「一个 agent 都没有」的空终端
+            "kind": ("shell" if sid.startswith("shell:")
+                     else ("term" if not w.path else "claude")),
             "lines": screen.splitlines()[-120:],
             "prompt": w.prompt,
             "status": w.last_state or "idle",
@@ -413,8 +452,11 @@ class Hub:
 
     def _ensure_watch(self, sid: str) -> Optional[Watch]:
         """按 sid 建/取 watch，逻辑与 attach 一致（抽出来给 REST 复用）。"""
-        if sid.startswith("term:"):
-            rest = sid[5:]
+        # term:  某个 pane 里跑着的 agent（只有屏幕）
+        # shell: 某个 pane 里一个 agent 都没有（空终端，客户端敲命令把它唤醒）
+        if sid.startswith("term:") or sid.startswith("shell:"):
+            rest = sid.split(":", 1)[1]
+
             pane = ""
             if "#" in rest:
                 rest, pane = rest.split("#", 1)
@@ -441,10 +483,38 @@ class Hub:
 
     # ---------------------------------------------------------------- index
     async def index(self, force: bool = False) -> dict:
-        if not force and self._index_cache and time.time() - self._index_cache[0] < INDEX_TTL:
-            return self._index_cache[1]
+        """索引缓存 + 单飞 + 旧数据先给（stale-while-revalidate）。
+
+        重建一次要 fork 一堆 ps / lsof / tmux，冷机上是秒级。手机、网页、轮询者
+        可能同时来要，不能让它们各自重建，也不能让它们一起等满 10 秒超时：
+        手上有旧数据就先把旧的给出去，后台那次建好再推 evt 刷新。
+        """
+        now = time.time()
+        cached = self._index_cache
+        if cached and not force and now - cached[0] < INDEX_TTL:
+            return cached[1]
+
+        busy = self._build_task is not None and not self._build_task.done()
+        # 有旧数据：立刻返回，重建放后台（force 用于 push_if_changed，必须等新的）
+        if cached and not force and now - cached[0] < INDEX_STALE:
+            if not busy:
+                self._build_task = asyncio.create_task(self._rebuild())
+            return cached[1]
+        # 没有旧数据 / 必须新鲜：只允许一次重建，后来的共享同一个 task
+        if busy and not force:
+            return await asyncio.shield(self._build_task)
+        if not busy:
+            self._build_task = asyncio.create_task(self._rebuild())
+        return await asyncio.shield(self._build_task)
+
+    async def _rebuild(self) -> dict:
         loop = asyncio.get_running_loop()
-        data = await loop.run_in_executor(None, build_index)
+        try:
+            data = await loop.run_in_executor(None, build_index)
+        except Exception:                       # 建不出来就继续用旧数据，别让请求 500
+            if self._index_cache:
+                return self._index_cache[1]
+            raise
         self._index_cache = (time.time(), data)
         return data
 

@@ -380,19 +380,24 @@
 
   function itemHTML(it, g) {
     // active = 这个 tmux 会话里当前正被 agent 用着的会话：深黑 + 绿点；其余全灰
+    // shell = 这个 tmux 里一个 agent 都没跑，只有一条空终端给你敲命令
+    var shell = it.kind === "shell";
     var cur = S.cur && S.cur.sid === it.sid ? " active" : "";
-    var on = it.active ? " live" : "";
+    var on = it.active && !shell ? " live" : "";
     var idle = it.active ? "" : " idle";
     var sub = it.subtitle || "";
     var cls = "it-sub" + (it.custom ? " custom" : "");
-    var tip = it.active ? "正在 " + (g.name || "tmux") + " 里运行" : (it.kind === "term" ? "未激活 · agent 已退出" : "未激活 · 历史会话");
-    return '<div class="item' + cur + idle + '" data-sid="' + esc(it.sid) +
+    var tip = shell ? "空终端 · 输入命令启动 agent"
+      : it.active ? "正在 " + (g.name || "tmux") + " 里运行"
+      : (it.kind === "term" ? "未激活 · agent 已退出" : "未激活 · 历史会话");
+    var meta = shell ? '<span>空终端</span>' : '<span>' + (it.count == null ? "—" : it.count + " 条") + '</span>' +
+      '<span>' + ago(it.updated_at) + '</span>';
+    return '<div class="item' + cur + idle + (shell ? " shell" : "") + '" data-sid="' + esc(it.sid) +
       '" data-kind="' + esc(it.kind || "claude") + '" title="' + esc(tip) + '">' +
       '<div class="it-main">' +
         '<div class="it-title"><span class="dot' + on + '"></span>' + esc(it.title) + '</div>' +
         '<div class="' + cls + '" title="' + esc(sub) + '">' + esc(sub || "（无标题）") + '</div>' +
-        '<div class="it-meta"><span>' + (it.count == null ? "—" : it.count + " 条") + '</span>' +
-          '<span>' + ago(it.updated_at) + '</span>' +
+        '<div class="it-meta">' + meta +
           (it.branch ? '<span>' + esc(it.branch) + '</span>' : "") +
         '</div>' +
       '</div>' +
@@ -467,6 +472,7 @@
   // 有没有历史可翻：claude 一直有；qwen code 这类「终端会话」现在也能绑到
   // 落盘的 jsonl（后端索引里的 has_history），不再是纯屏幕
   function hasHistory(sid) {
+    if (sid.slice(0, 5) === "shell:") return false;      // 空终端：没有历史可翻
     if (sid.slice(0, 5) !== "term:") return true;
     var it = itemOf(sid);
     return !!(it && it.has_history);
