@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sbp4ai-agents"
-version = "0.5.8"
+version = "0.5.9"
 description = "SBP (Session Bridge Protocol) device agent: a local panel for tmux + CLI agents (claude/codex/dsh/hermes/openclaw) plus the outbound bridge that reports them to an sbp-dispatcher. E2EE keys are generated locally and never leave the machine."
 readme = "README.md"
 requires-python = ">=3.9"
